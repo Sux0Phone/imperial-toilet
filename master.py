@@ -107,7 +107,6 @@ async def pinger():
 
 @tg_client.on(events.Album(chats=input_tg_channels_entities))
 async def album_handler(event):
-    print('I get album with len:', len(event.messages))
     for output_discord_channel_id in output_discord_channels_id:
         media_names, mystery_file_obj = await album_preparator(output_discord_channel_id, event.messages)
         if type(media_names) != list:
