@@ -5,6 +5,7 @@ import aiocron
 import logging
 import discord
 from discord.ext import commands
+from discord.utils import get
 from telethon import TelegramClient, events, sync
 from telethon.sessions import StringSession
 from telethon.tl.types import InputChannel
@@ -17,7 +18,14 @@ TG_STR_SESSION = os.getenv('TG_STR_SESSION')
 TG_API_ID = os.getenv('TG_API_ID')
 TG_API_HASH = os.getenv('TG_API_HASH')
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-DISCORD_REACTIONS = ['🤙', '👎'] #эти реакции будут ставиться под кааждый пост, можете добавить свои
+DISCORD_REACTIONS = ['🤙', '👎'] #эти реакции будут ставиться под каждый пост, можете добавить свои
+
+DELETE_POST_BY_REACTION = True #возможность удаления постов по нажатию определенного числа пользователей на определенную реакцию
+DELETE_REACTION = '❌' #удаляющий эмоджи, если включено удаление поста по реакциям 
+DELETE_POST_USER_COUNT = 10 #общее число реакций для удаления поста, если включено удаление поста по реакциям (бот учитывается)
+
+SEND_LOGS = True #отправлять ли логи в Discord-канал
+LOGGING_CHANNEL_ID = 933093075247591464 #ID канала для логов
 
 tg_client = TelegramClient(StringSession(TG_STR_SESSION), api_id=TG_API_ID, api_hash=TG_API_HASH)
 tg_client.connect()
@@ -60,7 +68,13 @@ async def discord_poster(discord_channel_id, tg_message_text, mystery_file_obj, 
 
     for emoji in DISCORD_REACTIONS:
         await ds_message.add_reaction(emoji)
+    if DELETE_POST_BY_REACTION == True:
+        await ds_message.add_reaction(DELETE_REACTION)
     return 'Success'
+
+async def log_sender(log_string):
+    ds_log_channel = ds_bot.get_channel(LOGGING_CHANNEL_ID)
+    await ds_log_channel.send(log_string)
 
 async def file_cleaner(media_names):
     if len(media_names) < 1:
@@ -119,7 +133,14 @@ async def album_handler(event):
             logging.info(f"I can't send this album. Reason: {repost_status}")
         else:
             await file_cleaner(media_names)
-            logging.info(f'Album has been sent to Discord channel with ID {output_discord_channel_id}.')
+            if DELETE_POST_BY_REACTION == True:
+                logging.info(f'Album has been sent to Discord channel with ID {output_discord_channel_id}.')
+                if SEND_LOGS == True:
+                    await log_sender(f'Album has been sent to Discord channel with ID {output_discord_channel_id}.')
+            else:
+                logging.info(f'Album has been sent to Discord channel with ID {output_discord_channel_id}. Waiting for delete reaction.')
+                if SEND_LOGS == True:
+                    await log_sender(f'Album has been sent to Discord channel with ID {output_discord_channel_id}. Waiting for delete reaction.')
 
 @tg_client.on(events.NewMessage(chats=input_tg_channels_entities))
 async def message_handler(event):
@@ -140,7 +161,31 @@ async def message_handler(event):
             logging.info(f"I can't send this message. Reason: {repost_status}")
         else:
             await file_cleaner(media_name)
-            logging.info(f'Message has been sent to Discord channel with ID {output_discord_channel_id}.')
+            if DELETE_POST_BY_REACTION == True:
+                logging.info(f'Message has been sent to Discord channel with ID {output_discord_channel_id}.')
+                if SEND_LOGS == True:
+                    await log_sender(f'Message has been sent to Discord channel with ID {output_discord_channel_id}.')
+            else:
+                logging.info(f'Message has been sent to Discord channel with ID {output_discord_channel_id}. Waiting for delete reaction.')
+                if SEND_LOGS == True:
+                    await log_sender(f'Message has been sent to Discord channel with ID {output_discord_channel_id}. Waiting for delete reaction.')
+
+if DELETE_POST_BY_REACTION == True:
+    @ds_bot.event
+    async def on_raw_reaction_add(ctx):
+        if ctx.channel_id in output_discord_channels_id and ctx.emoji.name == DELETE_REACTION:
+            channel = ds_bot.get_channel(ctx.channel_id)
+            message = await channel.fetch_message(ctx.message_id)
+            reaction = get(message.reactions, emoji=ctx.emoji.name)
+            if reaction.count >= DELETE_POST_USER_COUNT:
+                reacted_users_obj = await reaction.users().flatten()
+                reacted_users = []
+                for reacted_user in reacted_users_obj:
+                    reacted_users.append(reacted_user.name)
+                await message.delete()
+                logging.info(f"I'm deleted the message! That's who reacted: {', '.join(reacted_users)}.")
+                if SEND_LOGS == True:
+                    await log_sender(f"I'm deleted the message! That's who reacted: {', '.join(reacted_users)}.")
 
 @ds_bot.event
 async def on_ready():
