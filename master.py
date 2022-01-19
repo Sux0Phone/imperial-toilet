@@ -24,7 +24,7 @@ DELETE_POST_BY_REACTION = True #возможность удаления пост
 DELETE_REACTION = '❌' #удаляющий эмоджи, если включено удаление поста по реакциям 
 DELETE_POST_USER_COUNT = 10 #общее число реакций для удаления поста, если включено удаление поста по реакциям (бот учитывается)
 
-SEND_LOGS = True #отправлять ли логи в Discord-канал
+SEND_LOGS = False #отправлять ли логи в Discord-канал
 LOGGING_CHANNEL_ID = 933093075247591464 #ID канала для логов
 
 tg_client = TelegramClient(StringSession(TG_STR_SESSION), api_id=TG_API_ID, api_hash=TG_API_HASH)
